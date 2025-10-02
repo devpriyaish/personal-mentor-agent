@@ -1,0 +1,19 @@
+# Core dependencies
+streamlit==1.29.0
+pandas==2.1.4
+numpy==1.26.2
+plotly==5.18.0
+
+# LangChain and AI
+langchain==0.1.0
+langchain-openai==0.0.2
+openai==1.6.1
+
+# Vector database
+qdrant-client==1.7.0
+
+# Embeddings
+sentence-transformers==2.2.2
+
+# Utilities
+python-dotenv==1.0.0
