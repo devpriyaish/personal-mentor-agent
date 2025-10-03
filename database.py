@@ -423,31 +423,11 @@ class DatabaseManager:
             ))
         return goal
     
-    def delete_goal(self, goal_id: str) -> None:
-      """Delete a goal"""
-      with self.sqlite_db.get_connection() as conn:
-          cursor = conn.cursor()
-          cursor.execute("DELETE FROM goals WHERE goal_id = ?", (goal_id,))
-
-    def update_goal(self, goal: Goal) -> None:
-      """Update an existing goal"""
-      with self.sqlite_db.get_connection() as conn:
-          cursor = conn.cursor()
-          cursor.execute("""
-              UPDATE goals 
-              SET title = ?, description = ?, target_date = ?, 
-                  status = ?, completed_at = ?
-              WHERE goal_id = ?
-          """, (
-              goal.title, goal.description, goal.target_date,
-              goal.status, goal.completed_at, goal.goal_id
-          ))
-    
     def get_user_goals(self, user_id: str, status: Optional[str] = None) -> List[Goal]:
         """Get goals for a user"""
         with self.sqlite_db.get_connection() as conn:
             cursor = conn.cursor()
-            query = "SELECT * FROM goals WHERE user_id = ?"
+            query = "SELECT * FROM goals WHERE user_id = ? AND status != 'deleted'"
             params = [user_id]
             
             if status:

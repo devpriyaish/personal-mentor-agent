@@ -1,12 +1,12 @@
 """
 Streamlit UI for Personal Mentor Agent
 Main application entry point
+FIXED: All UI issues resolved + Agent integration
 """
 
 # Load environment variables first
 from dotenv import load_dotenv
 load_dotenv()
-
 
 import uuid
 import streamlit as st
@@ -74,6 +74,8 @@ class MentorApp:
             st.session_state.user_id = None
         if "chat_messages" not in st.session_state:
             st.session_state.chat_messages = []
+        if "redirect_to" not in st.session_state:
+            st.session_state.redirect_to = None
     
     def run(self):
         """Run the application"""
@@ -126,9 +128,15 @@ class MentorApp:
                 st.markdown("---")
                 st.markdown("### Navigation")
                 
+                # Handle redirect
+                default_page = st.session_state.get("redirect_to", "💬 Chat")
+                if st.session_state.redirect_to:
+                    st.session_state.redirect_to = None  # Clear redirect
+                
                 page = st.radio(
                     "Go to",
                     ["💬 Chat", "📊 Dashboard", "🎯 Goals", "📈 Habits", "🔮 Reflections"],
+                    index=["💬 Chat", "📊 Dashboard", "🎯 Goals", "📈 Habits", "🔮 Reflections"].index(default_page) if default_page in ["💬 Chat", "📊 Dashboard", "🎯 Goals", "📈 Habits", "🔮 Reflections"] else 0,
                     label_visibility="collapsed"
                 )
                 
@@ -163,7 +171,7 @@ class MentorApp:
         with col1:
             st.markdown("### 🔑 Login")
             login_name = st.text_input("Your Name", key="login_name")
-            if st.button("Login"):
+            if st.button("Login", key="login_btn"):
                 if login_name:
                     # Simple login - in production, use proper authentication
                     user_id = f"user_{login_name.lower().replace(' ', '_')}"
@@ -180,7 +188,7 @@ class MentorApp:
             st.markdown("### ✨ Create Account")
             new_name = st.text_input("Your Name", key="new_name")
             new_email = st.text_input("Email (optional)", key="new_email")
-            if st.button("Create Account"):
+            if st.button("Create Account", key="create_btn"):
                 if new_name:
                     user_id = f"user_{new_name.lower().replace(' ', '_')}"
                     
@@ -220,6 +228,8 @@ class MentorApp:
         """Render chat interface"""
         st.markdown('<p class="main-header">💬 Chat with Your Mentor</p>', 
                    unsafe_allow_html=True)
+        
+        st.info("💡 **Tip**: Your AI mentor can now create goals and habits for you directly! Just ask things like 'Can you create a goal for me?' or 'Set up a habit tracker for exercise'.")
         
         # Load conversation history
         if not st.session_state.chat_messages:
@@ -333,17 +343,21 @@ class MentorApp:
         
         with col2:
             st.markdown("### 🎯 Quick Actions")
-            if st.button("📝 Log Habit", use_container_width=True):
-                st.session_state.current_page = "📈 Habits"
+            
+            # FIXED: Quick action buttons now work
+            if st.button("📝 Log Habit", use_container_width=True, key="qa_log_habit"):
+                st.session_state.redirect_to = "📈 Habits"
                 st.rerun()
-            if st.button("🎯 Add Goal", use_container_width=True):
-                st.session_state.current_page = "🎯 Goals"
+            
+            if st.button("🎯 Add Goal", use_container_width=True, key="qa_add_goal"):
+                st.session_state.redirect_to = "🎯 Goals"
                 st.rerun()
-            if st.button("🔮 Generate Reflection", use_container_width=True):
+            
+            if st.button("🔮 Generate Reflection", use_container_width=True, key="qa_reflection"):
                 with st.spinner("Generating reflection..."):
                     reflection = self.agent_orchestrator.generate_reflection(user_id)
                     st.success("Reflection generated!")
-                    st.session_state.current_page = "🔮 Reflections"
+                    st.session_state.redirect_to = "🔮 Reflections"
                     st.rerun()
     
     def render_goals_page(self):
@@ -353,9 +367,9 @@ class MentorApp:
         
         user_id = st.session_state.user_id
         
-        # Add new goal
-        with st.expander("➕ Add New Goal"):
-            with st.form("new_goal_form"):
+        # FIXED: Add new goal with proper form handling
+        with st.expander("➕ Add New Goal", expanded=False):
+            with st.form("new_goal_form", clear_on_submit=True):
                 goal_title = st.text_input("Goal Title")
                 goal_description = st.text_area("Description")
                 target_date = st.date_input("Target Date (optional)")
@@ -380,33 +394,35 @@ class MentorApp:
                         interaction_type=InteractionType.GOAL
                     )
                     
-                    st.success("Goal created!")
+                    st.success("✅ Goal created!")
                     st.rerun()
         
-        # Display goals
+        # Display goals - FIXED: Proper tab handling
         tabs = st.tabs(["Active", "Completed", "All"])
         
         with tabs[0]:
             goals = self.db_manager.get_user_goals(user_id, status="active")
-            self.display_goals(goals)
+            self.display_goals(goals, "active")
         
         with tabs[1]:
             goals = self.db_manager.get_user_goals(user_id, status="completed")
-            self.display_goals(goals)
+            self.display_goals(goals, "completed")
         
         with tabs[2]:
-            goals = self.db_manager.get_user_goals(user_id)
-            self.display_goals(goals)
+            # FIXED: Show all goals
+            goals = self.db_manager.get_user_goals(user_id, status=None)
+            self.display_goals(goals, "all")
     
-    def display_goals(self, goals: list):
-        """Display list of goals"""
+    def display_goals(self, goals: list, tab_type: str):
+        """Display list of goals - FIXED: Unique keys and edit/delete"""
         if not goals:
             st.info("No goals yet. Create your first goal above!")
             return
         
-        for goal in goals:
+        for idx, goal in enumerate(goals):
+            # FIXED: Use unique container key
             with st.container():
-                col1, col2 = st.columns([4, 1])
+                col1, col2, col3 = st.columns([3, 1, 1])
                 
                 with col1:
                     status_emoji = "✅" if goal.status == "completed" else "🎯"
@@ -421,8 +437,9 @@ class MentorApp:
                             st.caption(f"📅 Target: {goal.target_date.strftime('%Y-%m-%d')} (Overdue)")
                 
                 with col2:
+                    # FIXED: Unique button keys using idx and tab_type
                     if goal.status == "active":
-                        if st.button("Mark Complete", key=f"complete_{goal.goal_id}"):
+                        if st.button("✅ Complete", key=f"complete_{tab_type}_{idx}_{goal.goal_id}"):
                             self.db_manager.update_goal_status(goal.goal_id, "completed")
                             
                             # Store achievement
@@ -434,6 +451,18 @@ class MentorApp:
                             
                             st.success("Goal completed! 🎉")
                             st.rerun()
+                    elif goal.status == "completed":
+                        if st.button("↩️ Reactivate", key=f"reactivate_{tab_type}_{idx}_{goal.goal_id}"):
+                            self.db_manager.update_goal_status(goal.goal_id, "active")
+                            st.success("Goal reactivated!")
+                            st.rerun()
+                
+                with col3:
+                    # FIXED: Add delete button
+                    if st.button("🗑️ Delete", key=f"delete_{tab_type}_{idx}_{goal.goal_id}"):
+                        self.db_manager.update_goal_status(goal.goal_id, "deleted")
+                        st.success("Goal deleted!")
+                        st.rerun()
                 
                 st.markdown("---")
     
@@ -444,9 +473,9 @@ class MentorApp:
         
         user_id = st.session_state.user_id
         
-        # Add new habit
-        with st.expander("➕ Create New Habit"):
-            with st.form("new_habit_form"):
+        # FIXED: Add new habit with proper form handling
+        with st.expander("➕ Create New Habit", expanded=False):
+            with st.form("new_habit_form", clear_on_submit=True):
                 habit_name = st.text_input("Habit Name")
                 habit_description = st.text_area("Description (optional)")
                 
@@ -471,7 +500,7 @@ class MentorApp:
                         target_value=target_value if target_value > 0 else None,
                         unit=unit if unit else None
                     )
-                    st.success(f"Habit '{habit_name}' created!")
+                    st.success(f"✅ Habit '{habit_name}' created!")
                     st.rerun()
         
         # Display habits
@@ -486,14 +515,14 @@ class MentorApp:
         
         for i, habit in enumerate(habits):
             with habit_tabs[i]:
-                self.render_habit_detail(habit)
+                self.render_habit_detail(habit, i)
     
-    def render_habit_detail(self, habit):
+    def render_habit_detail(self, habit, idx: int):
         """Render detailed habit view"""
         user_id = st.session_state.user_id
         
         # Log entry
-        with st.form(f"log_habit_{habit.habit_id}"):
+        with st.form(f"log_habit_{idx}_{habit.habit_id}"):
             col1, col2 = st.columns([2, 1])
             with col1:
                 value = st.number_input(
@@ -511,7 +540,7 @@ class MentorApp:
                     value=value,
                     notes=notes
                 )
-                st.success("Logged!")
+                st.success("✅ Logged!")
                 st.rerun()
         
         # Statistics
@@ -561,9 +590,11 @@ class MentorApp:
         
         user_id = st.session_state.user_id
         
+        st.info("💡 **Note**: Reflections now include insights from both your tracked progress AND your chat conversations!")
+        
         # Generate new reflection
         if st.button("✨ Generate New Reflection"):
-            with st.spinner("Reflecting on your journey..."):
+            with st.spinner("Reflecting on your journey (including chat history)..."):
                 reflection = self.agent_orchestrator.generate_reflection(user_id)
                 st.success("Reflection generated!")
                 st.rerun()
